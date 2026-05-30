@@ -7,5 +7,6 @@ fixtures/real_exports/*
 outputs/*
 !outputs/synthetic_long_decisions__prompt-1.0.0.json
 !outputs/synthetic_long_decisions__prompt-1.1.0.json
+!outputs/synthetic_long_decisions__prompt-1.2.0.json
 !outputs/.gitkeep
 *.local.*

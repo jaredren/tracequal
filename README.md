@@ -4,9 +4,10 @@ TraceQual is infrastructure for making AI involvement in qualitative analysis le
 
 ## Live deliverable
 
-The primary artifact is the narrative notebook:
+The primary artifact is the narrative notebook. GitHub's native notebook renderer fails on this file (a known issue with some notebook outputs); use one of the links below instead.
 
-[notebooks/mp2_notebook.ipynb](https://github.com/jaredren/tracequal/blob/main/notebooks/mp2_notebook.ipynb)
+- **Primary:** [View on nbviewer](https://nbviewer.org/github/jaredren/tracequal/blob/main/notebooks/mp2_notebook.ipynb)
+- **Fallback:** [Static HTML export](notebooks/mp2_notebook.html) — if nbviewer is unavailable, open this file in a browser from the repo.
 
 ## What's in this repo
 

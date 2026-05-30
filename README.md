@@ -6,7 +6,7 @@ TraceQual is infrastructure for making AI involvement in qualitative analysis le
 
 The primary artifact is the narrative notebook:
 
-[notebooks/mp2_notebook.ipynb](https://github.com/jaredren/HCDE530/blob/main/notebooks/mp2_notebook.ipynb)
+[notebooks/mp2_notebook.ipynb](https://github.com/jaredren/tracequal/blob/main/notebooks/mp2_notebook.ipynb)
 
 ## What's in this repo
 
@@ -20,7 +20,7 @@ The primary artifact is the narrative notebook:
 ## How to run it locally
 
 ```bash
-git clone https://github.com/jaredren/HCDE530.git
+git clone https://github.com/jaredren/tracequal.git
 cd tracequal
 python3 -m venv .venv
 source .venv/bin/activate
@@ -36,14 +36,14 @@ The validation harness validates extraction output against the current schema (v
 - **Supported in principle but not yet tested on a real export:** Generic `messages` JSON shape currently recognized by the parser.
 - **Known unsupported in v1:** ChatGPT account export JSON with tree-structured `mapping`. Recommendation for ChatGPT users: copy the conversation and use the paste/markdown path.
 
-## Citation
+## Citation (WIP)
 
 ```bibtex
 @misc{tracequal2026,
-  author       = {[Author Name]},
+  author       = {Jared Ren},
   title        = {TraceQual: A Disclosure Scaffold for AI-Assisted Qualitative Analysis},
   year         = {[YEAR]},
-  howpublished = {\url{https://github.com/[username]/[repo]}},
+  howpublished = {\url{https://github.com/jaredren/tracequal}},
   note         = {HCDE 530 MP2 artifact}
 }
 ```

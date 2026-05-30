@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+fixtures/real_exports/*
+!fixtures/real_exports/README.md
+outputs/*
+!outputs/synthetic_long_decisions__prompt-1.0.0.json
+!outputs/synthetic_long_decisions__prompt-1.1.0.json
+!outputs/.gitkeep
+*.local.*

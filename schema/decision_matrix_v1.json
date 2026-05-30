@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tracequal.dev/schema/decision_matrix_v1.json",
+  "title": "TraceQual Schema v1.1",
+  "description": "JSON Schema for TraceQual's decision matrix and positioning log. One decision matrix row per substantive AI suggestion (not per turn or per session). See docs/schema_notes.md for column rationale and methods citations.",
+  "tracequal_version": "1.1.0",
+  "methods_anchors": [
+    "Feuston and Brubaker (2021) — analytic_stage",
+    "McDonald, Schoenebeck, and Forte (2019) — audit trail without IRR reporting",
+    "Braun and Clarke (2006, 2022) — analytic_stage phase enum"
+  ],
+  "$defs": {
+    "decision_enum": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "modified",
+        "rejected",
+        "deferred",
+        "unclear"
+      ],
+      "description": "Researcher response to a substantive AI suggestion. accepted: used substantially as-given (light formatting edits do not count as modified). modified: substance changed in ways that affect analytic meaning. rejected: explicitly not used or contradicted by subsequent direction. deferred: set aside without accept/reject. unclear: transcript does not show what happened next."
+    },
+    "analytic_stage_enum": {
+      "type": "string",
+      "enum": [
+        "familiarization",
+        "coding",
+        "theming",
+        "reviewing",
+        "defining",
+        "writeup"
+      ],
+      "description": "Braun and Clarke reflexive thematic analysis phase. Use coding when ambiguous."
+    },
+    "confidence_enum": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Extractor confidence in row accuracy. high: explicit decision and reasoning in transcript. medium: explicit decision, inferred reasoning. low: inferred decision or reasoning, or ambiguous transcript; prefix inferred reasoning with [inferred]."
+    },
+    "shift_type_enum": {
+      "type": "string",
+      "enum": [
+        "broadening",
+        "narrowing",
+        "reframing",
+        "reaffirming",
+        "destabilizing"
+      ],
+      "description": "Epistemic stance shift type for the positioning pass. broadening/narrowing: scope shifts. reframing: change in conceptual lens. reaffirming: pushback that strengthens existing frame. destabilizing: AI suggestion produced genuine uncertainty about a prior commitment."
+    },
+    "decision_row": {
+      "type": "object",
+      "description": "One row in the primary decision matrix.",
+      "additionalProperties": false,
+      "required": [
+        "turn_id",
+        "researcher_prompt_summary",
+        "ai_suggestion_summary",
+        "decision",
+        "reasoning",
+        "decision_stated",
+        "reasoning_stated",
+        "analytic_stage",
+        "confidence"
+      ],
+      "properties": {
+        "turn_id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sequential turn index within the chat session. Used for ordering; not a timestamp."
+        },
+        "timestamp": {
+          "description": "ISO 8601 datetime when present in the export format; null for pasted transcripts.",
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "researcher_prompt_summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-sentence neutral summary of what the researcher asked."
+        },
+        "ai_suggestion_summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-sentence neutral summary of what the AI proposed."
+        },
+        "decision": {
+          "$ref": "#/$defs/decision_enum"
+        },
+        "reasoning": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Researcher's stated or inferred rationale. Prefix with [inferred] when reasoning is inferred."
+        },
+        "decision_stated": {
+          "type": "boolean",
+          "description": "True when the researcher's decision is directly observable in the transcript; false when inferred."
+        },
+        "reasoning_stated": {
+          "type": "boolean",
+          "description": "True when the researcher's reasoning is explicitly stated in the transcript; false when inferred."
+        },
+        "analytic_stage": {
+          "$ref": "#/$defs/analytic_stage_enum"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence_enum"
+        }
+      }
+    },
+    "positioning_row": {
+      "type": "object",
+      "description": "One row in the secondary positioning log.",
+      "additionalProperties": false,
+      "required": [
+        "turn_id",
+        "shift_type",
+        "evidence_quote",
+        "note"
+      ],
+      "properties": {
+        "turn_id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Anchor turn in the main decision matrix."
+        },
+        "shift_type": {
+          "$ref": "#/$defs/shift_type_enum"
+        },
+        "evidence_quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Verbatim excerpt from the researcher's turn, under 15 words."
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-sentence interpretation of the stance shift."
+        }
+      }
+    },
+    "decision_matrix": {
+      "type": "array",
+      "description": "Primary extraction output: structured record of researcher analytic decisions.",
+      "items": {
+        "$ref": "#/$defs/decision_row"
+      }
+    },
+    "positioning_log": {
+      "type": "array",
+      "description": "Secondary positioning pass output: sparse log of epistemic stance shifts.",
+      "items": {
+        "$ref": "#/$defs/positioning_row"
+      }
+    }
+  }
+}

@@ -1,0 +1,202 @@
+[
+  {
+    "turn_id": 8,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher asked the AI to proceed excerpt by excerpt from the top of the transcript.",
+    "ai_suggestion_summary": "The AI proposed coding lines 12-19 as Code 2 (Asynchronous control) with a supporting note framing P5's Loom adoption as a scheduling workaround rather than a tool preference.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted Code 2 but rejected the supporting note, stating the excerpt reflects reclaiming time autonomy rather than a mere scheduling workaround, and chose to write the note independently.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 10,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 2 for the prior excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 34-41 as Code 6 (Re-do compulsion), noting a strong fit.",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted without qualification.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 12,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 6 for the prior excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 52-58 fit both Code 4 (Manager visibility anxiety) and Code 5 (Recording self-consciousness) and asked the researcher to choose.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted both codes but assigned Code 4 as primary and Code 5 as secondary, specifying that the self-consciousness is downstream of the visibility anxiety.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 14,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the double-coding of lines 52-58 and asked the AI to continue.",
+    "ai_suggestion_summary": "The AI noted that lines 71-79 do not fit any current code and offered the researcher a choice between flagging for inductive expansion or moving on.",
+    "decision": "modified",
+    "reasoning": "The researcher chose to flag the excerpt and directed the AI to add a candidate code labeled 'Skill development [?]', deferring a final decision to a later pass.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 16,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to add the 'Skill development [?]' candidate code and continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 89-95 fit Code 7 (Time displacement) but also suggested the excerpt might warrant its own code about performative engagement.",
+    "decision": "deferred",
+    "reasoning": "The researcher explicitly set the excerpt aside for later consideration without accepting or rejecting either proposed coding.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 18,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher deferred the prior excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 102-110 as Code 3 (Tool as buffer), revising its earlier observation that Code 3 would not fire for P5.",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted the code assignment and acknowledged the AI's self-correction.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 20,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 3 for the prior excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 118-125 as Code 4 (Manager visibility anxiety) and noted the excerpt also gestures at a pattern of visibility as currency.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted Code 4 but declined to treat visibility-as-currency as a new code at this stage, directing the AI to flag it as a memo for cross-transcript checking rather than an analytic decision within the current coding pass.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 22,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 4 and directed the memo on visibility-as-currency, then asked the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 138-144 are reflexive in a way the codebook does not capture and indicated uncertainty about which code, if any, applies.",
+    "decision": "unclear",
+    "reasoning": "[inferred] The researcher acknowledged the codebook gap and indicated a need to think further, but did not commit to a code assignment, a new candidate code, or an explicit deferral before the conversation moved to a different request.",
+    "analytic_stage": "coding",
+    "confidence": "low"
+  },
+  {
+    "turn_id": 27,
+    "timestamp": null,
+    "researcher_prompt_summary": "After a digression about accessing other transcripts, the researcher directed the AI to continue with P5.",
+    "ai_suggestion_summary": "The AI proposed coding lines 155-164 under the 'Skill development' candidate code established earlier, while noting the excerpt also carries a critical undertone.",
+    "decision": "rejected",
+    "reasoning": "The researcher rejected the 'Skill development' framing as too positive and directed the AI to create a new candidate code, 'Communication norms reshaping', to capture P5's ambivalence.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 29,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to add 'Communication norms reshaping' as a candidate code and retain 'Skill development' separately, then asked the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 175-182 do not fit any current code and offered to add a candidate code.",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted the proposal and supplied the candidate code label 'Asynchronous isolation'.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 31,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to add 'Asynchronous isolation' and continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 195-203 could be coded either as a counter-instance under 'Asynchronous isolation' or as Code 3 (Tool as buffer), and asked the researcher to choose.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted both codings—counter-instance on Asynchronous isolation and primary on Tool as buffer—and additionally reframed Code 3's definition to include disclosure affordances, expanding its scope beyond risk protection.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 33,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted the double-coding and directed the AI to memo the Code 3 definitional expansion, then asked the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 215-221 as Code 7 (Time displacement).",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted without qualification.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 35,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 7 for the prior excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 234-240 as Code 7 (Time displacement) again, noting the excerpt carries a positive valence compared to the prior instance.",
+    "decision": "modified",
+    "reasoning": "Accepted Code 7 assignment; valence tagging deferred to researcher's separate notes outside the AI-assisted workflow.",
+    "analytic_stage": "coding",
+    "confidence": "medium"
+  },
+  {
+    "turn_id": 37,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 7 with the valence note and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 256-262 do not fit the current codebook and offered to add a candidate code.",
+    "decision": "deferred",
+    "reasoning": "[inferred] The researcher declined to add a candidate code, characterizing the excerpt as potentially P5-specific, and directed the AI to skip without flagging it for later review.",
+    "analytic_stage": "coding",
+    "confidence": "medium"
+  },
+  {
+    "turn_id": 39,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to skip lines 256-262 and continue.",
+    "ai_suggestion_summary": "The AI noted that lines 271-278 share the same construct as the performing-productivity moment from lines 138-144 and offered to begin consolidating the two moments.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted the consolidation proposal but elevated it from a coding action to the creation of a candidate theme ('Performative async'), directing both moments to be tagged under it rather than treated as a code-level consolidation.",
+    "analytic_stage": "theming",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 43,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher acknowledged the phase shift to theming, directed the AI to finish the transcript on coding only, and asked the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 289-296 as Code 2 (Asynchronous control), characterizing the fit as strong but retrospective.",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted without qualification.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 47,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher agreed to skip the out-of-scope excerpt and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI proposed that lines 321-330 do not fit the current codebook directly and offered to add a candidate code.",
+    "decision": "accepted",
+    "reasoning": "The researcher accepted and supplied the candidate code label 'Norm dependency', noting an intention to check it against other transcripts.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 49,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to add 'Norm dependency' and continue.",
+    "ai_suggestion_summary": "The AI proposed coding lines 342-350 as Code 6 (Re-do compulsion) and noted an additional wrinkle about visible production timing.",
+    "decision": "modified",
+    "reasoning": "The researcher accepted Code 6 and directed the AI to add a memo linking visible production timing to potential interaction with Code 4 (Manager visibility anxiety), extending the analytic significance of the excerpt beyond the code assignment alone.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 51,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher accepted Code 6 with the memo and directed the AI to continue.",
+    "ai_suggestion_summary": "The AI noted that lines 365-371 do not fit a single code cleanly and appear to summarize several codes at once.",
+    "decision": "modified",
+    "reasoning": "The researcher declined to assign a code but directed the AI to flag the excerpt as a candidate exemplar quote for the eventual writeup rather than leaving it uncategorized.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  },
+  {
+    "turn_id": 53,
+    "timestamp": null,
+    "researcher_prompt_summary": "The researcher directed the AI to flag lines 365-371 as an exemplar quote and continue.",
+    "ai_suggestion_summary": "The AI noted that lines 388-394 have the same summative, non-codable status as the prior excerpt.",
+    "decision": "accepted",
+    "reasoning": "The researcher directed the same treatment—flag as exemplar quote—without modification.",
+    "analytic_stage": "coding",
+    "confidence": "high"
+  }
+]

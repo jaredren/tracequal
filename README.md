@@ -18,6 +18,35 @@ The primary artifact is the narrative notebook. GitHub's native notebook rendere
 - **Locked cached extractions:** `outputs/` holds versioned JSON caches from validation runs (two files are committed for reproducibility).
 - **Methods documentation:** `docs/schema_notes.md` and `docs/methods_reflection.md` document schema rationale and build findings.
 
+## Interactive app
+
+Two demo modes share one Streamlit process. Run:
+
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open the local URL and use the **sidebar** to switch pages:
+
+| Page | Purpose |
+|------|---------|
+| **Kiosk exhibit** | Offline showcase for an unattended table demo. Preloaded sample caches only — no API key, uploads, or live extraction. |
+| **Interactive Studio** | Original workflow: upload or paste a transcript, run extraction (API key required), explore charts and the decision matrix. Sidebar includes one-click demo loaders and cached matrices. |
+
+For the kiosk, open in a full-screen browser window. Use **Start over** (or wait ~90 seconds idle) between visitors.
+
+For interactive extraction, set `ANTHROPIC_API_KEY` in `.env` or paste a key in the sidebar.
+
+Static disclosure charts for the notebook / HTML deliverable:
+
+```bash
+python scripts/export_viz.py
+```
+
+PNG files are written to `notebooks/viz/`.
+
 ## How to run it locally
 
 ```bash

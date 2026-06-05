@@ -2,3 +2,5 @@ anthropic==0.104.1
 pandas==3.0.3
 python-dotenv==1.2.2
 jsonschema==4.26.0
+streamlit>=1.58.0
+vl-convert-python>=1.8.0

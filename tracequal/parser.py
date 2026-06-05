@@ -55,6 +55,26 @@ def parse_chat(path: Path | str) -> list[Turn]:
     )
 
 
+def parse_chat_content(
+    text: str,
+    *,
+    format: Literal["json", "text"] | None = None,
+) -> list[Turn]:
+    """Parse transcript text when the caller has content but not a file path."""
+    stripped = text.strip()
+    if not stripped:
+        raise ValueError("Transcript content is empty.")
+
+    if format == "json":
+        return _parse_json_transcript(text)
+    if format == "text":
+        return _parse_text_transcript(text)
+
+    if stripped.startswith(("{", "[")):
+        return _parse_json_transcript(text)
+    return _parse_text_transcript(text)
+
+
 def format_transcript(turns: list[Turn]) -> str:
     """Format parsed turns for injection into the extraction prompt."""
     blocks: list[str] = []

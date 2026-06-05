@@ -1,7 +1,7 @@
 """TraceQual: disclosure scaffold for AI-assisted qualitative analysis."""
 
 from tracequal.extractor import extract_decisions
-from tracequal.parser import Turn, format_transcript, parse_chat
+from tracequal.parser import Turn, format_transcript, parse_chat, parse_chat_content
 from tracequal.positioning import extract_positioning
 from tracequal.schema import (
     SchemaVersionError,
@@ -21,6 +21,7 @@ __all__ = [
     "get_schema_version",
     "load_schema",
     "parse_chat",
+    "parse_chat_content",
     "validate_decision_matrix",
     "validate_decision_row",
     "validate_positioning_log",

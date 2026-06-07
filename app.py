@@ -1,4 +1,25 @@
-"""TraceQual kiosk exhibit — offline, unattended showcase demo."""
+"""TraceQual kiosk exhibit — offline, unattended showcase demo.
+
+This is the main Streamlit web app for TraceQual. It loads pre-computed
+"decision matrix" data (JSON files describing how a researcher responded to
+each AI suggestion during qualitative coding) and renders an interactive
+dashboard around it.
+
+How Streamlit works (important for reading this file):
+- Streamlit apps are plain Python scripts. Streamlit re-runs the ENTIRE
+  script top-to-bottom every time the user interacts with the page (clicks a
+  button, selects a chart point, etc.). There is no long-lived event loop you
+  write yourself; you just describe the page and Streamlit redraws it.
+- Because the script reruns constantly, any value that must survive between
+  reruns (like "which page are we on?") is kept in ``st.session_state``, a
+  dict-like object that persists for the user's browser session.
+- The entry point is ``run()`` at the bottom; it sets up the page and the
+  multi-page navigation. The "kiosk exhibit" page itself is ``run_kiosk()``.
+
+The "kiosk" framing: this app is meant to run unattended (e.g. at a poster
+session) entirely offline from committed sample data, and it auto-resets to the
+landing page after a period of inactivity.
+"""
 
 from __future__ import annotations
 
@@ -12,9 +33,14 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+# ``components`` lets us embed raw HTML/JavaScript snippets into the page
+# (used here to force the browser to scroll back to the top).
 import streamlit.components.v1 as components
 
 import tracequal.viz as _viz
+# Force-reload the viz module on every script run. Because Streamlit reruns the
+# script (not a fresh Python process) on each interaction, this guarantees we
+# always pick up the latest chart code during development without restarting.
 importlib.reload(_viz)
 
 from tracequal.parser import Turn, parse_chat
@@ -24,6 +50,8 @@ from tracequal.ui_theme import section_heading as _section_heading
 from tracequal.ui_theme import section_label as _section_label
 from tracequal.ui_theme import style_chart as _style_kiosk_chart
 
+# Re-export the pieces we need from the viz module as module-level names. Doing
+# this after the reload above ensures these refer to the freshly loaded objects.
 DECISION_COLORS = _viz.DECISION_COLORS
 chart_analytic_stage_strip = _viz.chart_analytic_stage_strip
 chart_decision_counts = _viz.chart_decision_counts
@@ -34,12 +62,16 @@ infer_schema_version = _viz.infer_schema_version
 prepare_plot_df = _viz.prepare_plot_df
 triage_rows = _viz.triage_rows
 
+# Resolve paths relative to this file so the app works no matter where it is
+# launched from. ``Path`` objects use the ``/`` operator to join path parts.
 PROJECT_ROOT = Path(__file__).resolve().parent
 DOCS = PROJECT_ROOT / "docs"
 OUTPUTS = PROJECT_ROOT / "outputs"
 ASSETS = PROJECT_ROOT / "assets"
-QR_PATH = ASSETS / "kiosk_qr.png"
+QR_PATH = ASSETS / "kiosk_qr.png"  # QR code shown in the footer
 
+# After this many seconds with no interaction, the kiosk resets to the landing
+# page (so it returns to a clean state for the next visitor).
 IDLE_SECONDS = 90
 
 # Which closing theme each kiosk case shows (reassign session ids here).
@@ -49,6 +81,10 @@ CLOSING_SECTION_BY_SESSION: dict[str, str] = {
     "grounding_detail": "train_ai_question",
 }
 
+# The three preloaded sample sessions the visitor can explore. Each entry
+# points at a transcript fixture and one or more cached decision-matrix JSON
+# files. "cache" is the primary matrix; "grounding_cache" is an optional
+# alternate-schema file used only for the record-grounding chart.
 KIOSK_SESSIONS: list[dict[str, Any]] = [
     {
         "id": "synthetic_main",
@@ -86,10 +122,18 @@ KIOSK_SESSIONS: list[dict[str, Any]] = [
 ]
 
 
+# URL path of the second page in this multi-page app (defined in run()).
 INTERACTIVE_STUDIO_URL = "/Interactive_Studio"
 
 
 def _chart_label(text: str) -> None:
+    """Render a small bold caption above a chart.
+
+    ``st.markdown`` writes Markdown/HTML to the page. ``unsafe_allow_html=True``
+    is required to let our custom HTML tags through (Streamlit escapes HTML by
+    default). ``html.escape`` neutralizes any special characters in ``text`` so
+    user/data content can't inject markup.
+    """
     st.markdown(
         f'<p class="kiosk-chart-label"><strong>{html.escape(text)}</strong></p>',
         unsafe_allow_html=True,
@@ -97,10 +141,21 @@ def _chart_label(text: str) -> None:
 
 
 def _render_kiosk_chart(chart) -> None:
+    """Apply the shared kiosk styling to an Altair chart and draw it.
+
+    ``use_container_width=True`` makes the chart stretch to fill its column.
+    """
     st.altair_chart(_style_kiosk_chart(chart), use_container_width=True)
 
 
 def _scroll_to_top() -> None:
+    """Inject JavaScript that scrolls the page back to the top of the case.
+
+    Streamlit renders the app inside an iframe, so the JS reaches up to
+    ``window.parent`` to manipulate the real page. We try several scroll
+    containers and repeat the scroll on a few timers because Streamlit lays out
+    the page asynchronously, so the target may not exist immediately.
+    """
     components.html(
         """
         <script>
@@ -147,11 +202,17 @@ def _scroll_to_top() -> None:
 
 
 def _init_state() -> None:
+    """Seed ``st.session_state`` with default values on first run.
+
+    ``st.session_state`` persists across reruns, so we only set each key if it
+    isn't already there — that way we don't clobber the visitor's current page
+    or selection on subsequent reruns.
+    """
     defaults = {
-        "page": "landing",
-        "session_id": None,
-        "selected_row_index": None,
-        "last_activity": time.time(),
+        "page": "landing",            # which screen to show: landing/picker/explore
+        "session_id": None,           # which sample session is open
+        "selected_row_index": None,   # which timeline dot the visitor clicked
+        "last_activity": time.time(), # timestamp used for idle auto-reset
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -159,34 +220,54 @@ def _init_state() -> None:
 
 
 def _touch() -> None:
+    """Record the current time as the last interaction (resets the idle timer)."""
     st.session_state.last_activity = time.time()
 
 
 def _reset_kiosk() -> None:
+    """Wipe all session state and re-seed defaults (return to landing page)."""
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     _init_state()
 
 
+# ``@st.fragment`` marks a function as an independently re-runnable piece of the
+# app; ``run_every`` makes Streamlit re-execute just this fragment on a timer
+# (here every 10s) without rerunning the whole script. We use it to poll for
+# inactivity in the background.
 @st.fragment(run_every=timedelta(seconds=10))
 def _idle_reset_watcher() -> None:
+    """Auto-reset the kiosk after IDLE_SECONDS of no interaction."""
     if st.session_state.get("page") == "landing":
-        return
+        return  # already at the start; nothing to reset
     idle_for = time.time() - st.session_state.get("last_activity", time.time())
     if idle_for >= IDLE_SECONDS:
         _reset_kiosk()
-        st.rerun()
+        st.rerun()  # force an immediate full rerun so the landing page shows
 
 
 def _style_matrix(df: pd.DataFrame):
+    """Return a pandas Styler that color-codes each "decision" cell.
+
+    The returned Styler is what Streamlit renders as a colored table.
+    """
     def _color_decision(value: str) -> str:
+        # Map a decision (e.g. "accepted") to a CSS background color; empty
+        # string means "no styling" for unknown values.
         color = DECISION_COLORS.get(value, "")
         return f"background-color: {color}; color: #0f1419" if color else ""
 
+    # ``.map`` applies the styling function cell-by-cell to the decision column.
     return df.style.map(_color_decision, subset=["decision"])
 
 
 def _load_session(session_id: str) -> tuple[list[dict], list[Turn], dict[str, Any]]:
+    """Load the decision-matrix rows and parsed transcript for one session.
+
+    Returns (rows, turns, config): the JSON matrix rows, the parsed chat turns,
+    and the matching entry from KIOSK_SESSIONS.
+    """
+    # ``next(...)`` grabs the first session whose id matches.
     config = next(item for item in KIOSK_SESSIONS if item["id"] == session_id)
     with config["cache"].open(encoding="utf-8") as handle:
         rows = json.load(handle)
@@ -195,10 +276,15 @@ def _load_session(session_id: str) -> tuple[list[dict], list[Turn], dict[str, An
 
 
 def _max_turn_id(turns: list[Turn], df: pd.DataFrame) -> int:
+    """Highest turn number across both the transcript and the matrix rows.
+
+    Used to size the chart x-axis so it spans the whole conversation.
+    """
     return max(max(turn["turn_id"] for turn in turns), int(df["turn_id"].max()))
 
 
 def _decision_plain(decision: str) -> str:
+    """Translate a decision code into a plain-English sentence for visitors."""
     labels = {
         "accepted": "The researcher accepted the AI suggestion.",
         "modified": "The researcher changed the AI suggestion before using it.",
@@ -221,6 +307,7 @@ def _pick_anchor_row(rows: list[dict]) -> dict | None:
 
 
 def _decision_counts(rows: list[dict]) -> dict[str, int]:
+    """Tally how many matrix rows fall into each decision category."""
     counts = {key: 0 for key in ("accepted", "modified", "rejected", "deferred", "unclear")}
     for row in rows:
         decision = row.get("decision")
@@ -230,12 +317,14 @@ def _decision_counts(rows: list[dict]) -> dict[str, int]:
 
 
 def _has_grounding_fields(rows: list[dict]) -> bool:
+    """True if rows carry the newer schema's "stated vs inferred" fields."""
     return bool(rows) and (
         "reasoning_stated" in rows[0] or "decision_stated" in rows[0]
     )
 
 
 def _count_reasoning_stated(rows: list[dict]) -> int:
+    """Count rows where the reasoning was explicitly stated in the transcript."""
     return sum(1 for row in rows if row.get("reasoning_stated") is True)
 
 
@@ -248,12 +337,19 @@ def _render_closing_panel(
     close: str,
     open_question: bool = False,
 ) -> None:
+    """Render one of the per-case "closing" panels at the bottom of a case.
+
+    Builds a styled HTML block from the given heading/intro/body/close text.
+    ``open_question=True`` switches in a different style and adds a disclaimer,
+    used for the speculative "could this train an AI?" panel.
+    """
     panel_class = "kiosk-closing-panel kiosk-closing-panel-open" if open_question else "kiosk-closing-panel"
     st.markdown('<div class="kiosk-closing-section">', unsafe_allow_html=True)
     st.markdown(f"### {html.escape(heading)}")
     if open_question:
         _kiosk_desc("Open question — not a product claim.")
     st.markdown(f'<p class="kiosk-closing-intro">{html.escape(intro)}</p>', unsafe_allow_html=True)
+    # Assemble the panel's inner HTML piece by piece, then emit it in one go.
     parts = [f'<div class="{panel_class}">']
     if body_html:
         parts.append(f'<p class="kiosk-closing-body">{body_html}</p>')
@@ -266,7 +362,8 @@ def _render_closing_panel(
 
 
 def _render_closing_justify_later(rows: list[dict]) -> None:
-    anchor = _pick_anchor_row(rows)
+    """Closing panel themed around justifying a decision after the fact."""
+    anchor = _pick_anchor_row(rows)  # an illustrative single row
     anchor_html = ""
     if anchor is not None:
         decision = html.escape(str(anchor["decision"]))
@@ -289,6 +386,7 @@ def _render_closing_justify_later(rows: list[dict]) -> None:
 
 
 def _render_closing_disclose_writeup(rows: list[dict]) -> None:
+    """Closing panel themed around disclosing AI use in a paper/writeup."""
     counts = _decision_counts(rows)
     n = len(rows)
     anchor_html = (
@@ -311,6 +409,7 @@ def _render_closing_disclose_writeup(rows: list[dict]) -> None:
 
 
 def _render_closing_train_ai_question(rows: list[dict]) -> None:
+    """Closing panel posing the open question of training an AI on these records."""
     n = len(rows)
     anchor_html = ""
     if _has_grounding_fields(rows):
@@ -338,6 +437,7 @@ def _render_closing_train_ai_question(rows: list[dict]) -> None:
 
 
 def _render_case_closing(session_id: str, rows: list[dict]) -> None:
+    """Pick and render the closing panel configured for this session."""
     theme = CLOSING_SECTION_BY_SESSION.get(session_id, "justify_later")
     if theme == "justify_later":
         _render_closing_justify_later(rows)
@@ -350,20 +450,28 @@ def _render_case_closing(session_id: str, rows: list[dict]) -> None:
 
 
 def _next_session_id(current_id: str) -> str:
+    """Return the id of the next session, wrapping around to the first."""
     session_ids = [session["id"] for session in KIOSK_SESSIONS]
     index = session_ids.index(current_id)
+    # Modulo makes the list cyclic: after the last session we wrap to index 0.
     return session_ids[(index + 1) % len(session_ids)]
 
 
 def _render_case_navigation(session_id: str) -> None:
+    """Render the back/next buttons at the bottom of a case view."""
     next_id = _next_session_id(session_id)
     next_title = next(session["title"] for session in KIOSK_SESSIONS if session["id"] == next_id)
 
-    st.markdown("---")
+    st.markdown("---")  # horizontal rule
+    # ``st.columns`` splits the page into side-by-side regions; ``with col:``
+    # directs subsequent widgets into that column.
     back_col, next_col = st.columns(2, gap="medium")
     with back_col:
+        # ``st.button`` returns True only on the rerun triggered by a click.
+        # So this ``if`` body runs once, right after the button is pressed.
         if st.button("← Go back", key="go_back_bottom", type="secondary", use_container_width=True):
             _touch()
+            # Update session_state, then st.rerun() to redraw with the new page.
             st.session_state.page = "picker"
             st.session_state.session_id = None
             st.session_state.selected_row_index = None
@@ -374,6 +482,7 @@ def _render_case_navigation(session_id: str) -> None:
             st.session_state.page = "explore"
             st.session_state.session_id = next_id
             st.session_state.selected_row_index = None
+            # Flag picked up at the end of _render_explore() to scroll up.
             st.session_state.scroll_to_top = True
             st.rerun()
     st.markdown(
@@ -383,6 +492,8 @@ def _render_case_navigation(session_id: str) -> None:
 
 
 def _render_header() -> None:
+    """Render the top bar: a "Start over" button and the centered title."""
+    # The list [2, 3, 2] sets relative column widths; the third column is unused.
     left, mid, _ = st.columns([2, 3, 2])
     with left:
         if st.button("← Start over", key="start_over"):
@@ -399,6 +510,10 @@ def _render_header() -> None:
 
 
 def _render_demo_switch() -> None:
+    """Render a link button that navigates to the Interactive Studio page.
+
+    Unlike st.button, st.link_button just navigates to a URL (no rerun logic).
+    """
     st.link_button(
         "Interactive Studio → upload, paste, extract",
         INTERACTIVE_STUDIO_URL,
@@ -406,6 +521,7 @@ def _render_demo_switch() -> None:
 
 
 def _render_landing() -> None:
+    """Render the landing/intro screen (the kiosk's first page)."""
     _render_demo_switch()
     st.markdown(
         '<h1 class="kiosk-title">When AI helps with qualitative coding,<br>'
@@ -432,6 +548,7 @@ def _render_landing() -> None:
         st.session_state.page = "picker"
         st.rerun()
 
+    # ``st.expander`` makes a collapsible section; its body lives in the ``with``.
     with st.expander("How it works"):
         st.markdown(
             "1. A researcher and AI chat while coding qualitative data.\n\n"
@@ -451,6 +568,7 @@ def _render_landing() -> None:
 
 
 def _render_session_picker() -> None:
+    """Render the screen where the visitor chooses one of the sample sessions."""
     _render_header()
     st.markdown("## Choose a sample session")
     st.markdown(
@@ -458,6 +576,7 @@ def _render_session_picker() -> None:
         "No typing, uploads, or network required.</p>",
         unsafe_allow_html=True,
     )
+    # One column per session, laid out side by side as selectable cards.
     cols = st.columns(len(KIOSK_SESSIONS), gap="large")
     for column, session in zip(cols, KIOSK_SESSIONS, strict=True):
         with column:
@@ -466,6 +585,7 @@ def _render_session_picker() -> None:
                 f'<p class="kiosk-session-desc">{html.escape(session["subtitle"])}</p>',
                 unsafe_allow_html=True,
             )
+            # Each button needs a unique ``key`` since they share the same label.
             if st.button("Open session →", key=f"pick_{session['id']}", use_container_width=True):
                 _touch()
                 st.session_state.page = "explore"
@@ -481,6 +601,7 @@ def render_provenance(cache_file: str, schema: str, n: int) -> None:
 
 
 def _render_row_story(row: dict) -> None:
+    """Render the detailed "story" panel for a single clicked matrix row."""
     st.markdown(
         f'<div class="kiosk-row-panel">'
         f'<p class="kiosk-mono kiosk-accent kiosk-row-meta">Turn {row["turn_id"]} · '
@@ -496,21 +617,30 @@ def _render_row_story(row: dict) -> None:
 
 
 def _render_explore() -> None:
+    """Render the main dashboard for one session: charts, triage, and matrix.
+
+    This is the largest screen. It loads the session data, then draws a series
+    of labeled chart sections, an interactive timeline, a triage table, and the
+    full decision matrix, ending with the closing panel and navigation.
+    """
     _render_header()
     session_id = st.session_state.session_id
     if not session_id:
+        # No session selected (shouldn't normally happen) — bounce to picker.
         st.session_state.page = "picker"
         st.rerun()
         return
 
+    # Invisible anchor element that _scroll_to_top() targets.
     st.markdown('<div id="tracequal-case-top"></div>', unsafe_allow_html=True)
 
     rows, turns, config = _load_session(session_id)
+    # Convert the raw JSON rows into a pandas DataFrame and let viz normalize it.
     df = prepare_plot_df(pd.DataFrame(rows))
-    cache_label = str(config["cache"].relative_to(PROJECT_ROOT))
+    cache_label = str(config["cache"].relative_to(PROJECT_ROOT))  # short path for display
     schema_version = infer_schema_version(rows)
-    n = len(df)
-    max_turn = _max_turn_id(turns, df)
+    n = len(df)  # number of matrix rows
+    max_turn = _max_turn_id(turns, df)  # x-axis extent for the charts
 
     st.markdown(f"## {config['title']}")
     st.markdown(
@@ -524,8 +654,10 @@ def _render_explore() -> None:
         "Charts document what was recorded; they do not evaluate the researcher or the AI."
     )
 
+    # --- Interactive timeline ---
     _section_label("Timeline")
     render_provenance(cache_label, schema_version, n)
+    # Show a "click a dot" hint until the visitor has selected a row.
     if st.session_state.selected_row_index is None:
         st.markdown(
             '<div class="kiosk-timeline-hint">'
@@ -542,23 +674,28 @@ def _render_explore() -> None:
     timeline = _style_kiosk_chart(
         chart_session_timeline(df, max_turn=max_turn, selectable=True)
     )
+    # ``on_select="rerun"`` makes clicking a chart point trigger a rerun and
+    # return the selection in ``event``. ``key`` names this selection.
     event = st.altair_chart(
         timeline,
         use_container_width=True,
         on_select="rerun",
         key="timeline_select",
     )
+    # If a point was clicked, remember which matrix row it maps to.
     if event and event.selection and event.selection.get("timeline_select"):
         points = event.selection["timeline_select"]
         if points:
             st.session_state.selected_row_index = int(points[0].get("row_index", 0))
             _touch()
 
+    # Once a row is selected, show its detailed story panel below the chart.
     if st.session_state.selected_row_index is not None:
         idx = st.session_state.selected_row_index
-        if 0 <= idx < len(rows):
+        if 0 <= idx < len(rows):  # guard against stale/out-of-range indices
             _render_row_story(rows[idx])
 
+    # --- Analytic-stage strip ---
     _section_label("Analytic-stage strip")
     _kiosk_desc(
         "How to read: colored bands show which phase of analysis the session was in "
@@ -567,9 +704,12 @@ def _render_explore() -> None:
     render_provenance(cache_label, schema_version, n)
     _render_kiosk_chart(chart_analytic_stage_strip(df, max_turn=max_turn))
 
+    # --- Decision counts + record grounding (two side-by-side charts) ---
     _section_label("Decision counts and record grounding")
+    # Does THIS session's matrix already include the grounding fields inline?
     has_inline_grounding = {"decision_stated", "reasoning_stated"}.issubset(df.columns)
     grounding_cache_path = config.get("grounding_cache")
+    # Otherwise, can we fall back to a separate reference cache for grounding?
     has_grounding_reference = (
         not has_inline_grounding
         and grounding_cache_path is not None
@@ -588,10 +728,12 @@ def _render_explore() -> None:
     _kiosk_desc(how_to_read)
     render_provenance(cache_label, schema_version, n)
 
+    # Decide which DataFrame feeds the right-hand grounding chart (or None).
     grounding_plot_df: pd.DataFrame | None = None
     if has_inline_grounding:
-        grounding_plot_df = df
+        grounding_plot_df = df  # the main matrix already has the fields
     elif has_grounding_reference:
+        # Load the separate reference cache and show its provenance line too.
         with grounding_cache_path.open(encoding="utf-8") as handle:
             grounding_rows = json.load(handle)
         grounding_plot_df = prepare_plot_df(pd.DataFrame(grounding_rows))
@@ -602,7 +744,7 @@ def _render_explore() -> None:
             len(grounding_plot_df),
         )
 
-    left, right = st.columns(2)
+    left, right = st.columns(2)  # two side-by-side charts
     with left:
         _chart_label("Decision counts")
         _render_kiosk_chart(chart_decision_counts(df))
@@ -611,11 +753,13 @@ def _render_explore() -> None:
             _chart_label("Record grounding by transcript evidence")
             _render_kiosk_chart(chart_grounding_by_confidence(grounding_plot_df))
         else:
+            # No grounding data available for this session: show a notice.
             st.info(
                 "Record-grounding composition requires schema v1.1.0 rows with "
                 "decision_stated / reasoning_stated fields."
             )
 
+    # --- Stage x decision heatmap ---
     _section_label("Stage × decision heatmap")
     _kiosk_desc("How to read: cell counts (n) show where decisions cluster by analytic stage.")
     render_provenance(cache_label, schema_version, n)
@@ -624,16 +768,19 @@ def _render_explore() -> None:
         use_container_width=True,
     )
 
+    # --- Reviewer triage: rows worth hand-checking before citing ---
     _section_label("Reviewer triage")
     _kiosk_desc(
         "How to read: rows with low record grounding or unclear decisions — "
         "hand-check these before citing the matrix."
     )
     render_provenance(cache_label, schema_version, n)
-    flagged = triage_rows(df)
+    flagged = triage_rows(df)  # subset of rows that need a closer look
     if flagged.empty:
         st.write("No rows flagged for triage in this sample.")
     else:
+        # ``st.dataframe`` renders an interactive table. ``column_config`` renames
+        # and formats columns for display without touching the underlying data.
         st.dataframe(
             flagged,
             use_container_width=True,
@@ -647,10 +794,12 @@ def _render_explore() -> None:
             },
         )
 
+    # --- Full decision matrix (the primary audit trail) ---
     st.markdown("---")
     _section_heading("Decision matrix")
     _kiosk_desc("Primary audit trail. Full text stays here — not summarized in the charts above.")
 
+    # Columns to show, in order; filtered to those actually present in the data.
     display_cols = [
         "turn_id",
         "decision",
@@ -662,7 +811,7 @@ def _render_explore() -> None:
     ]
     table = df[[col for col in display_cols if col in df.columns]].copy()
     st.dataframe(
-        _style_matrix(table),
+        _style_matrix(table),  # color-coded by decision
         use_container_width=True,
         hide_index=True,
         column_config={
@@ -683,11 +832,14 @@ def _render_explore() -> None:
     _render_case_closing(session_id, rows)
     _render_case_navigation(session_id)
 
+    # If the "Next case" button set this flag, scroll to the top now and clear
+    # it (``pop`` reads-and-removes so it only fires once).
     if st.session_state.pop("scroll_to_top", False):
         _scroll_to_top()
 
 
 def _render_footer() -> None:
+    """Render the page footer: attribution text, notebook link, and QR image."""
     st.markdown('<hr class="kiosk-footer-rule">', unsafe_allow_html=True)
     footer_left, footer_right = st.columns([3, 1], gap="large")
     with footer_left:
@@ -703,7 +855,7 @@ def _render_footer() -> None:
             unsafe_allow_html=True,
         )
     with footer_right:
-        if QR_PATH.exists():
+        if QR_PATH.exists():  # only show the QR if the asset is present
             st.image(str(QR_PATH), caption="Full notebook", width=120)
 
 
@@ -724,15 +876,24 @@ def _validate_sessions() -> list[str]:
 
 
 def run_kiosk() -> None:
+    """Entry point for the kiosk page: dispatch to the right screen.
+
+    This runs top-to-bottom on every interaction. It seeds state, registers the
+    idle watcher, checks that all data files exist, then renders whichever
+    screen ``st.session_state.page`` says we're on, followed by the footer.
+    """
     _init_state()
     _touch()
     _idle_reset_watcher()
 
+    # Fail loudly if any required sample artifact is missing, rather than
+    # crashing mid-render later.
     missing = _validate_sessions()
     if missing:
         st.error("Kiosk assets missing:\n" + "\n".join(f"- {item}" for item in missing))
         return
 
+    # Simple router: the "page" value in session_state decides what to draw.
     page = st.session_state.page
     if page == "landing":
         _render_landing()
@@ -741,6 +902,7 @@ def run_kiosk() -> None:
     elif page == "explore":
         _render_explore()
     else:
+        # Unknown page value (shouldn't happen): reset to a known-good state.
         _reset_kiosk()
         st.rerun()
 
@@ -748,13 +910,18 @@ def run_kiosk() -> None:
 
 
 def run() -> None:
+    """Top-level app entry point: configure the page and set up navigation."""
+    # ``set_page_config`` must be the first Streamlit call; it sets the browser
+    # tab title/icon and uses the full page width.
     st.set_page_config(
         page_title="TraceQual",
         page_icon="📋",
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    inject_app_css()
+    inject_app_css()  # apply the project's custom CSS theme
+    # ``st.navigation`` defines a multi-page app. Each ``st.Page`` is one page;
+    # the kiosk is the default, plus a separate Interactive Studio script page.
     pg = st.navigation(
         [
             st.Page(run_kiosk, title="Kiosk exhibit", icon="📋", default=True),
@@ -767,8 +934,9 @@ def run() -> None:
         ],
         position="top",
     )
-    pg.run()
+    pg.run()  # render the currently selected page
 
 
+# Streamlit executes this script directly, so this kicks off the app.
 if __name__ == "__main__":
     run()

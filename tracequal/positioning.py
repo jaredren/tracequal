@@ -1,4 +1,10 @@
-"""Secondary epistemic positioning pass for TraceQual."""
+"""Secondary epistemic positioning pass for TraceQual.
+
+This is a planned second analysis step (not yet built). Where the primary pass
+records *decisions*, this "positioning" pass would record shifts in the
+researcher's stance/viewpoint ("epistemic positioning") across the conversation.
+For now every function here just raises NotImplementedError as a placeholder.
+"""
 
 from __future__ import annotations
 
@@ -38,4 +44,6 @@ def extract_positioning(
     Raises:
         NotImplementedError: Until the positioning prompt and API wrapper exist.
     """
+    # Placeholder: this feature isn't built yet, so we fail loudly and clearly
+    # rather than silently returning empty/fake data.
     raise NotImplementedError(NOT_IMPLEMENTED_MESSAGE)

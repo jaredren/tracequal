@@ -1,14 +1,40 @@
-"""Shared Streamlit theme for TraceQual kiosk and interactive studio."""
+"""Shared Streamlit theme for TraceQual kiosk and interactive studio.
 
+This module centralizes all visual styling for the TraceQual Streamlit apps so
+the "kiosk" and "interactive studio" pages look identical. It does two things:
+
+1. Defines ``APP_CSS``: a big block of CSS (as a Python string) that overrides
+   Streamlit's default look with a dark "ink + amber" theme. ``inject_app_css``
+   pushes this CSS into the page.
+2. Provides small helper functions that render pre-styled bits of HTML (section
+   labels, headings, page intros) and one helper that themes Altair charts, so
+   pages don't have to repeat markup/styling by hand.
+
+Streamlit renders the UI as a web page, so styling is done with regular CSS and
+HTML rather than Python widgets.
+"""
+
+# ``from __future__ import annotations`` makes type hints (like the return type
+# ``-> None``) be treated as plain strings, which avoids import/order issues and
+# is a common modern Python convention.
 from __future__ import annotations
 
+# ``html`` is used for html.escape(), which neutralizes characters like < and &
+# in user/data text so they show as literal text instead of being interpreted as
+# HTML (this prevents broken layout and HTML-injection bugs).
 import html
 
 import streamlit as st
 
+# A single CSS stylesheet stored as a triple-quoted string. It is wrapped in a
+# <style> tag so it can be dropped straight into the page via st.markdown(...).
+# Everything below is standard CSS targeting Streamlit's internal HTML elements.
 APP_CSS = """
 
 <style>
+/* :root holds CSS custom properties ("variables"). Defining colors, spacing,
+   fonts, etc. once here lets the rest of the CSS reference them with var(--name),
+   so the whole theme can be retuned by editing this one block. */
 :root {
     --ink: #0f1419;
     --ink-soft: #141a20;
@@ -35,12 +61,20 @@ APP_CSS = """
     --prose-width: 42rem;
     --content-width: 1180px;
 }
+/* Hide Streamlit's built-in chrome (hamburger menu, footer, top header bar,
+   deploy button, toolbar) so the apps look like a custom site, not a Streamlit
+   demo. The [data-testid="..."] selectors target Streamlit's own elements by
+   the test IDs it attaches to them. !important forces these rules to win over
+   Streamlit's defaults. */
 #MainMenu, footer, header[data-testid="stHeader"], .stDeployButton,
 [data-testid="stToolbar"], [data-testid="stStatusWidget"] {
     visibility: hidden !important;
     height: 0 !important;
     display: none !important;
 }
+/* Sidebar and top navigation: dark background, with the current page link
+   highlighted in amber (a[aria-current="page"] is the link for the page you are
+   on). */
 section[data-testid="stSidebar"] {
     background-color: var(--ink-soft);
     border-right: 1px solid var(--border);
@@ -75,6 +109,9 @@ section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="pa
     background: var(--amber-dim) !important;
     color: var(--amber-hover) !important;
 }
+/* Core page shell: overall background, default text color, and base font.
+   .block-container is Streamlit's main content column (we cap its width and add
+   vertical padding). */
 .stApp {
     background-color: var(--ink);
     color: var(--text-primary);
@@ -91,6 +128,8 @@ section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a[aria-current="pa
     line-height: 1.65;
     color: var(--text-body);
 }
+/* Typography: serif headings, with clamp() giving a font size that scales with
+   the viewport but stays within a min/max range (clamp(min, preferred, max)). */
 h1, h2, h3, .kiosk-title {
     font-family: var(--font-serif);
     color: var(--text-primary);
@@ -110,6 +149,10 @@ h3 {
     margin-top: var(--space-xl);
     margin-bottom: var(--space-xs);
 }
+/* Custom "kiosk-" classes used by the helper functions below and by the app
+   pages: lead paragraphs, muted text, accent color, rules/dividers, section
+   labels and headings, panels, cards, footers, etc. Each is just a reusable
+   styled text/box variant in the theme. */
 .kiosk-lead {
     font-size: 1.25rem;
     line-height: 1.65;
@@ -141,6 +184,7 @@ h3 {
     border-bottom: 1px solid var(--border);
     max-width: var(--prose-width);
 }
+/* Section label: a smaller heading marked with an amber bar on its left edge. */
 .kiosk-section-label {
     font-family: var(--font-serif);
     font-size: 1.15rem;
@@ -210,6 +254,8 @@ div[data-testid="stExpander"] .streamlit-expanderContent li {
     line-height: 1.65 !important;
     color: var(--text-body) !important;
 }
+/* Buttons: amber primary buttons; "secondary" buttons are outlined/transparent.
+   The > selector targets the <button> that is a direct child of .stButton. */
 .stButton > button {
     font-family: var(--font-sans);
     font-size: 1.05rem;
@@ -238,6 +284,9 @@ button[kind="secondary"] {
 button[kind="secondary"]:hover {
     background: var(--amber-dim) !important;
 }
+/* :has() styles a parent based on its children: here, any Streamlit column that
+   contains a .kiosk-session-title is turned into a bordered "card" (and gets a
+   hover highlight). This is how plain columns become clickable session cards. */
 div[data-testid="column"]:has(.kiosk-session-title) {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -444,6 +493,8 @@ div[data-testid="column"]:has(.app-demo-label) .stButton > button {
     color: var(--text-meta);
     margin: 0 0 var(--space-sm) 0;
 }
+/* Tabs: underline the selected tab in amber. data-baseweb refers to BaseWeb,
+   the component library Streamlit uses under the hood. */
 div[data-testid="stTabs"] [data-baseweb="tab-list"] {
     gap: var(--space-sm);
     border-bottom: 1px solid var(--border);
@@ -501,12 +552,24 @@ div[data-testid="stAlert"] {
 
 
 def inject_app_css() -> None:
-    """Inject the shared TraceQual app stylesheet."""
+    """Inject the shared TraceQual app stylesheet into the current page.
+
+    Each Streamlit page should call this once near the top. st.markdown writes
+    raw markup, and unsafe_allow_html=True is required so the <style> tag is
+    rendered as actual CSS instead of being shown as escaped text.
+    """
     st.markdown(APP_CSS, unsafe_allow_html=True)
 
 
 def style_chart(chart):
-    """Altair theme matching the ink / amber app shell."""
+    """Apply the ink/amber theme to an Altair chart and return it.
+
+    Altair uses a fluent (method-chaining) API: each .configure_* call returns a
+    new chart, so they are chained together. We make the background transparent
+    (so the page color shows through) and color the title, axes, and legend to
+    match the app's palette. Hex values mirror the CSS variables above. Callers
+    use it like ``st.altair_chart(style_chart(my_chart))``.
+    """
     return (
         chart.configure(background="transparent")
         .configure_title(color="#f5f0e6", fontSize=15, font="Georgia")
@@ -516,6 +579,11 @@ def style_chart(chart):
 
 
 def section_label(text: str) -> None:
+    """Render ``text`` as a small amber-barred section label (.kiosk-section-label).
+
+    html.escape protects the markup from special characters in ``text``; the
+    f-string drops the safe text into a styled <p> element.
+    """
     st.markdown(
         f'<p class="kiosk-section-label">{html.escape(text)}</p>',
         unsafe_allow_html=True,
@@ -523,6 +591,7 @@ def section_label(text: str) -> None:
 
 
 def section_heading(text: str) -> None:
+    """Render ``text`` as a styled section heading (.kiosk-section-heading)."""
     st.markdown(
         f'<p class="kiosk-section-heading">{html.escape(text)}</p>',
         unsafe_allow_html=True,
@@ -530,10 +599,17 @@ def section_heading(text: str) -> None:
 
 
 def desc(text: str) -> None:
+    """Render ``text`` as a muted descriptive paragraph (.kiosk-desc)."""
     st.markdown(f'<p class="kiosk-desc">{html.escape(text)}</p>', unsafe_allow_html=True)
 
 
 def page_intro(*, eyebrow: str, title: str, lead: str) -> None:
+    """Render a standard page header: small eyebrow, big title, and lead text.
+
+    The ``*`` in the signature makes all three arguments keyword-only, so callers
+    must write page_intro(eyebrow=..., title=..., lead=...) for clarity. Each
+    piece is escaped and wrapped in its themed element, then emitted as one block.
+    """
     st.markdown(
         f'<p class="app-eyebrow">{html.escape(eyebrow)}</p>'
         f'<h1 class="kiosk-title">{html.escape(title)}</h1>'

@@ -4,18 +4,33 @@
 Compares extraction output against expectations documented in
 docs/synthetic_chat_long.md (Notes for fixture users). Output is plain text
 suitable for pasting into a methods appendix.
+
+In plain terms: this script runs the decision extractor on a known sample chat,
+then checks the extracted "decision matrix" against a list of hand-written
+expectations (right number of rows, the right decision types near the right
+turns, certain turns correctly skipped, confidence levels behaving sensibly,
+etc.). Each expectation prints as PASS / FAIL / PENDING / N/A, and the process
+exit code is 1 if anything FAILed (handy for automation), else 0.
+
+Run it from the repository root:
+
+    python3 scripts/validate_extraction.py
+    python3 scripts/validate_extraction.py --no-cache       # force a fresh API call
+    python3 scripts/validate_extraction.py --fixture docs/other_chat.md
 """
 
+# Treat type hints as plain strings so newer syntax works on older Python.
 from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
+from dataclasses import dataclass  # decorator that auto-writes boilerplate for data-holding classes
+from datetime import datetime, timezone  # for the UTC timestamp in the report header
+from enum import Enum  # for the fixed set of check statuses (PASS/FAIL/...)
 from pathlib import Path
 
 # Allow running as: python scripts/validate_extraction.py from repo root.
+# (Find the repo root two folders up and add it to the import search path.)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -40,6 +55,8 @@ TURN_TOLERANCE = 1
 # Low bar for a single-fixture demo only; this is not statistically robust.
 MIN_CALIBRATION_SAMPLE = 5
 
+# Phrases that suggest a row is documenting a researcher correcting the AI.
+# Used to detect rows that SHOULD have been skipped (see _is_correction_row).
 CORRECTION_SIGNALS = (
     "actually",
     "wait",
@@ -51,6 +68,8 @@ CORRECTION_SIGNALS = (
     "corrected",
 )
 
+# For each decision type, the set of turn numbers where we expect to see it.
+# Maps a decision label -> a set of reference turn IDs from the fixture notes.
 EXPECTED_DECISION_WINDOWS: dict[str, set[int]] = {
     "accepted": {10, 18, 20, 33, 43, 49},
     "modified": {8, 27},
@@ -60,16 +79,20 @@ EXPECTED_DECISION_WINDOWS: dict[str, set[int]] = {
 }
 
 
+# An Enum is a fixed set of named constants. Inheriting from `str` too means
+# each member also behaves like its string value (so CheckStatus.PASS == "PASS").
 class CheckStatus(str, Enum):
     PASS = "PASS"
     FAIL = "FAIL"
-    PENDING = "PENDING"
-    NA = "N/A"
+    PENDING = "PENDING"  # check exists but its feature isn't implemented yet
+    NA = "N/A"           # descriptive-only, no pass/fail verdict
 
 
+# @dataclass auto-generates the __init__ and other boilerplate from the fields
+# listed below, so CheckResult(check_id=..., status=..., detail=...) just works.
 @dataclass
 class CheckResult:
-    """One validation check outcome."""
+    """One validation check outcome (its id, status, and a human-readable detail)."""
 
     check_id: str
     status: CheckStatus
@@ -77,12 +100,15 @@ class CheckResult:
 
 
 def _turn_window(center: int) -> set[int]:
-    """Return turn IDs within tolerance of a reference turn."""
+    """Return the set of turn IDs within +/-TURN_TOLERANCE of a reference turn."""
+    # Set comprehension: for tolerance 1 this yields {center-1, center, center+1}.
     return {center + offset for offset in range(-TURN_TOLERANCE, TURN_TOLERANCE + 1)}
 
 
 def _rows_at_turns(rows: DecisionMatrix, turn_refs: set[int]) -> DecisionMatrix:
     """Return rows whose turn_id falls within tolerance of any reference turn."""
+    # Build one combined set of all acceptable turn IDs (each reference expanded
+    # by its tolerance window), then keep rows landing inside it.
     allowed: set[int] = set()
     for ref in turn_refs:
         allowed.update(_turn_window(ref))
@@ -116,11 +142,16 @@ def _is_correction_row(row: dict) -> bool:
 
 
 def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
-    """Run all decision-matrix expectations from the synthetic fixture notes."""
+    """Run all decision-matrix expectations from the synthetic fixture notes.
+
+    Returns a list of CheckResult objects, one per expectation. The pattern
+    throughout is: compute something, then append a PASS or FAIL CheckResult.
+    """
     results: list[CheckResult] = []
 
+    # Expect the extractor to produce roughly 18-22 rows for this fixture.
     row_count = len(rows)
-    if 18 <= row_count <= 22:
+    if 18 <= row_count <= 22:  # Python allows chained comparisons like this
         results.append(
             CheckResult(
                 "matrix_row_count",
@@ -137,6 +168,7 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # Expect several "accepted" decisions near the listed turns.
     accepted_near = _rows_with_decision_near(
         rows,
         "accepted",
@@ -231,6 +263,8 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # Collect the distinct decision labels actually present (set comprehension
+    # de-duplicates automatically) and confirm all five expected values appear.
     decisions_present = {
         row["decision"] for row in rows
     }
@@ -253,8 +287,9 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # Most rows should be tagged as the "coding" analytic stage for this fixture.
     coding_count = sum(1 for row in rows if row["analytic_stage"] == "coding")
-    if coding_count > len(rows) / 2:
+    if coding_count > len(rows) / 2:  # strictly more than half = majority
         results.append(
             CheckResult(
                 "analytic_stage_coding_dominant",
@@ -271,6 +306,8 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # The analysis is expected to shift toward "theming" later in the chat
+    # (around turn 39+); look for any such rows.
     theming_shift = [
         row for row in rows
         if row["analytic_stage"] == "theming" and row["turn_id"] >= 39
@@ -293,8 +330,10 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # Certain turn ranges are administrative/off-topic and should NOT appear as
+    # rows; each "skip_*" check passes only when no rows landed in that range.
     skip_24_26 = _rows_at_turns(rows, {24, 25, 26})
-    if not skip_24_26:
+    if not skip_24_26:  # empty list is falsy, meaning correctly skipped
         results.append(
             CheckResult(
                 "skip_turns_24_26",
@@ -350,6 +389,7 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # The miscount correction around turns 55-57 should also be skipped.
     correction_rows = [row for row in rows if _is_correction_row(row)]
     if not correction_rows:
         results.append(
@@ -369,6 +409,7 @@ def _run_matrix_checks(rows: DecisionMatrix) -> list[CheckResult]:
             )
         )
 
+    # Around tricky turns we expect the extractor to report lower confidence.
     low_t36 = [
         row
         for row in _rows_at_turns(rows, {35, 36})
@@ -442,11 +483,17 @@ def _in_expected_window(turn_id: int, turn_refs: set[int]) -> bool:
 
 
 def _row_matches_fixture_expectation(row: dict) -> bool | None:
-    """Return row correctness vs fixture notes; None when row is unlabeled."""
+    """Return row correctness vs fixture notes; None when row is unlabeled.
+
+    True  = row agrees with the fixture's expected decision/skip rules.
+    False = row contradicts them.
+    None  = the fixture says nothing about this turn, so we can't judge it.
+    """
     turn_id = int(row["turn_id"])
     decision = str(row["decision"])
 
-    # Explicit skip expectations.
+    # Rows that fall in a skip range, or look like a correction, are "wrong" if
+    # they exist at all (the fixture expects no row there).
     if (
         _in_expected_window(turn_id, {24, 25, 26})
         or _in_expected_window(turn_id, {45, 46})
@@ -456,19 +503,28 @@ def _row_matches_fixture_expectation(row: dict) -> bool | None:
     if _is_correction_row(row):
         return False
 
+    # Which decision label(s) does the fixture expect at this turn? (.items()
+    # iterates the dict as (key, value) pairs.)
     matching_expected_decisions = [
         expected_decision
         for expected_decision, refs in EXPECTED_DECISION_WINDOWS.items()
         if _in_expected_window(turn_id, refs)
     ]
     if not matching_expected_decisions:
-        return None
+        return None  # fixture has no expectation here -> unlabeled
 
+    # Row is correct if its decision is among the expected ones for this turn.
     return decision in matching_expected_decisions
 
 
 def _run_confidence_calibration_checks(rows: DecisionMatrix) -> list[CheckResult]:
-    """Check whether derived confidence tracks fixture-aligned row correctness."""
+    """Check whether derived confidence tracks fixture-aligned row correctness.
+
+    Idea: high-confidence rows should be right more often than low-confidence
+    ones. We only consider rows the fixture actually labels (correctness is not
+    None), then compare accuracy across confidence buckets.
+    """
+    # Keep (row, was_it_correct) pairs only for rows we can actually judge.
     evaluable: list[tuple[dict, bool]] = []
     for row in rows:
         correctness = _row_matches_fixture_expectation(row)
@@ -494,15 +550,19 @@ def _run_confidence_calibration_checks(rows: DecisionMatrix) -> list[CheckResult
             ),
         ]
 
+    # Split the evaluable rows into high- and low-confidence buckets.
     high_rows = [(row, ok) for row, ok in evaluable if row["confidence"] == "high"]
     low_rows = [(row, ok) for row, ok in evaluable if row["confidence"] == "low"]
 
+    # `_` is a throwaway name for the row we don't need here; we only count `ok`.
     high_correct = sum(1 for _, ok in high_rows if ok)
     low_wrong = sum(1 for _, ok in low_rows if not ok)
 
     high_total = len(high_rows)
     low_total = len(low_rows)
 
+    # Accuracy per bucket. `X if cond else None` guards against dividing by zero
+    # when a bucket is empty.
     high_rate = (high_correct / high_total) if high_total else None
     low_rate = (sum(1 for _, ok in low_rows if ok) / low_total) if low_total else None
 
@@ -539,6 +599,8 @@ def _run_confidence_calibration_checks(rows: DecisionMatrix) -> list[CheckResult
         ),
     ]
 
+    # Refuse to give a calibration verdict if either bucket is too small to be
+    # meaningful; report N/A instead.
     if high_total < MIN_CALIBRATION_SAMPLE or low_total < MIN_CALIBRATION_SAMPLE:
         results.append(
             CheckResult(
@@ -562,6 +624,7 @@ def _run_confidence_calibration_checks(rows: DecisionMatrix) -> list[CheckResult
         )
         return results
 
+    # The actual calibration test: high-confidence rows should be more accurate.
     if high_rate > low_rate:
         results.append(
             CheckResult(
@@ -593,12 +656,15 @@ def _run_positioning_checks(
     rows: DecisionMatrix,
 ) -> list[CheckResult]:
     """Attempt positioning checks; mark PENDING when the pass is not implemented."""
+    # Each tuple is (check_id, turn to look near, expected shift_type).
     expectations: list[tuple[str, int, str]] = [
         ("positioning_reframing_t18", 18, "reframing"),
         ("positioning_broadening_t32", 32, "broadening"),
         ("positioning_reframing_t40", 40, "reframing"),
     ]
 
+    # The positioning pass may not be built yet; if it raises NotImplementedError
+    # we report every expectation as PENDING rather than failing.
     try:
         log = extract_positioning(turns, rows)
     except NotImplementedError as exc:
@@ -641,6 +707,8 @@ def _run_positioning_checks(
 def _format_check_line(result: CheckResult) -> str:
     """Format one check result as a single appendix-ready line."""
     status = f"[{result.status.value}]"
+    # The `:<10` and `:<32` are format specs that left-align text in a fixed
+    # width, so the columns line up neatly in the printed report.
     return f"{status:<10}{result.check_id:<32}{result.detail}"
 
 
@@ -654,8 +722,14 @@ def _print_report(
     schema_version: str,
     results: list[CheckResult],
 ) -> int:
-    """Print the validation report and return the process exit code."""
+    """Print the validation report and return the process exit code.
+
+    The `*` in the signature forces every argument to be passed by name
+    (keyword-only), which makes the call site self-documenting.
+    """
+    # Current time in UTC, formatted as an ISO-8601 timestamp for the header.
     run_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Tally each status. `is` compares identity, which is fine for enum members.
     pass_count = sum(1 for r in results if r.status is CheckStatus.PASS)
     fail_count = sum(1 for r in results if r.status is CheckStatus.FAIL)
     pending_count = sum(1 for r in results if r.status is CheckStatus.PENDING)
@@ -685,6 +759,7 @@ def _print_report(
     if pending_count:
         print("Pending implementation: positioning pass (tracequal/positioning.py)")
 
+    # Non-zero exit code signals failure to shells / CI; any FAIL makes it 1.
     exit_code = 1 if fail_count else 0
     print(f"Exit code: {exit_code}")
     return exit_code
@@ -719,8 +794,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # `a or b` returns the user's --cache-path if given, otherwise the default.
     cache_path = args.cache_path or default_cache_path()
     turns = parse_chat(args.fixture)
+    # Run (or load from cache) the extraction. `not args.no_cache` flips the
+    # --no-cache flag into the use_cache argument the extractor expects.
     rows = extract_decisions(
         turns,
         cache_path=cache_path,
@@ -729,6 +807,7 @@ def main(argv: list[str] | None = None) -> int:
         temperature=DEFAULT_TEMPERATURE,
     )
 
+    # Run all three groups of checks; .extend appends a whole list at once.
     results = _run_matrix_checks(rows)
     results.extend(_run_confidence_calibration_checks(rows))
     results.extend(_run_positioning_checks(turns, rows))
@@ -744,5 +823,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
 
+# Run main() only when this file is executed directly (not imported). SystemExit
+# turns main()'s return value into the program's exit code.
 if __name__ == "__main__":
     raise SystemExit(main())
